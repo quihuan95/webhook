@@ -1,12 +1,10 @@
 const express = require("express");
 const bodyParser = require("body-parser");
-const OpenAI = require("openai");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const request = require("request");
 require("dotenv").config();
 
-const openai = new OpenAI({
-	apiKey: process.env.OPENAI_API_KEY,
-});
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const app = express();
 app.use(bodyParser.json());
@@ -36,13 +34,14 @@ app.post("/webhook", (req, res) => {
 
 			if (event.message && event.message.text) {
 				console.log(`📨 Tin nhắn từ ${sender_psid}: ${event.message.text}`);
-				callGPT(event.message.text)
-					.then((gptReply) => {
-						sendMessage(sender_psid, gptReply);
-					})
+				callGemini(event.message.text)
+					.then((reply) => sendMessage(sender_psid, reply))
 					.catch((err) => {
-						console.error("❌ GPT lỗi:", err);
-						sendMessage(sender_psid, "Xin lỗi, AI đang lag tí 😅");
+						console.error("Gemini lỗi:", err.message);
+						sendMessage(
+							sender_psid,
+							"⚡ AI nhà Google đang mơ ngủ, thử lại sau nha!"
+						);
 					});
 			}
 		});
@@ -73,12 +72,12 @@ function sendMessage(psid, message) {
 	);
 }
 
-async function callGPT(messageText) {
-	const chatCompletion = await openai.chat.completions.create({
-		model: "gpt-3.5-turbo",
-		messages: [{ role: "user", content: messageText }],
-	});
-	return chatCompletion.choices[0].message.content.trim();
+async function callGemini(prompt) {
+	const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+
+	const result = await model.generateContent(prompt);
+	const response = result.response;
+	return response.text();
 }
 
 const PORT = process.env.PORT || 3000;
