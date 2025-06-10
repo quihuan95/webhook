@@ -114,13 +114,5 @@ async function callGemini(promptHistory) {
 	// return response.text();
 }
 
-setTimeout(() => {
-	callGemini([{ role: "user", parts: [{ text: "Tôi có một con gà" }] }]).then(
-		(reply) => {
-			console.log(reply);
-		}
-	);
-}, 5000);
-
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server is running on port ${PORT}`));
