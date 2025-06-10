@@ -2,7 +2,24 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const { GoogleGenAI } = require("@google/genai");
 const request = require("request");
+const fs = require("fs");
+const path = require("path");
+
 require("dotenv").config();
+
+function saveHistory(psid, history) {
+	const filepath = path.join(__dirname, "histories", `${psid}.json`);
+	fs.writeFileSync(filepath, JSON.stringify(history, null, 2));
+}
+
+function loadHistory(psid) {
+	const filepath = path.join(__dirname, "histories", `${psid}.json`);
+	if (fs.existsSync(filepath)) {
+		const raw = fs.readFileSync(filepath);
+		return JSON.parse(raw);
+	}
+	return null;
+}
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
@@ -15,16 +32,20 @@ const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
 
 function getChatHistory(psid) {
 	if (!sessions[psid]) {
-		sessions[psid] = [
-			{
-				role: "system",
-				parts: [
-					{
-						text: "Bạn là BốBot – một trợ lý AI cho sự kiện VINATOM. Trả lời bằng tiếng Việt, phong cách ngắn gọn, hài hước, có chiều sâu.",
-					},
-				],
-			},
-		];
+		let history = loadHistory(psid);
+		if (!history) {
+			history = [
+				{
+					role: "system",
+					parts: [
+						{
+							text: "Bạn là BốBot – một trợ lý AI...",
+						},
+					],
+				},
+			];
+		}
+		sessions[psid] = history;
 	}
 	return sessions[psid];
 }
@@ -65,6 +86,7 @@ app.post("/webhook", async (req, res) => {
 					// 3. Lưu phản hồi lại để giữ mạch hội thoại
 					chatHistory.push({ role: "model", parts: [{ text: reply }] });
 
+					saveHistory(sender_psid, chatHistory);
 					// 4. Gửi trả cho người dùng
 					sendMessage(sender_psid, reply);
 				} catch (err) {
