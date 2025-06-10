@@ -1,14 +1,12 @@
 const express = require("express");
 const bodyParser = require("body-parser");
-const { Configuration, OpenAIApi } = require("openai");
+const OpenAI = require("openai");
 const request = require("request");
 require("dotenv").config();
 
-const configuration = new Configuration({
+const openai = new OpenAI({
 	apiKey: process.env.OPENAI_API_KEY,
 });
-
-const openai = new OpenAIApi(configuration);
 
 const app = express();
 app.use(bodyParser.json());
@@ -76,11 +74,11 @@ function sendMessage(psid, message) {
 }
 
 async function callGPT(messageText) {
-	const completion = await openai.createChatCompletion({
+	const chatCompletion = await openai.chat.completions.create({
 		model: "gpt-3.5-turbo",
 		messages: [{ role: "user", content: messageText }],
 	});
-	return completion.data.choices[0].message.content.trim();
+	return chatCompletion.choices[0].message.content.trim();
 }
 
 const PORT = process.env.PORT || 3000;
