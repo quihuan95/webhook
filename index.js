@@ -9,8 +9,25 @@ const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const app = express();
 app.use(bodyParser.json());
 
+let sessions = {};
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
+
+function getChatHistory(psid) {
+	if (!sessions[psid]) {
+		sessions[psid] = [
+			{
+				role: "system",
+				parts: [
+					{
+						text: "Bạn là BốBot – một trợ lý AI cho sự kiện VINATOM. Trả lời bằng tiếng Việt, phong cách ngắn gọn, hài hước, có chiều sâu.",
+					},
+				],
+			},
+		];
+	}
+	return sessions[psid];
+}
 
 app.get("/webhook", (req, res) => {
 	const mode = req.query["hub.mode"];
@@ -25,26 +42,40 @@ app.get("/webhook", (req, res) => {
 	}
 });
 
-app.post("/webhook", (req, res) => {
+app.post("/webhook", async (req, res) => {
 	const body = req.body;
+
 	if (body.object === "page") {
-		body.entry.forEach((entry) => {
+		for (const entry of body.entry) {
 			const event = entry.messaging[0];
 			const sender_psid = event.sender.id;
 
 			if (event.message && event.message.text) {
-				console.log(`📨 Tin nhắn từ ${sender_psid}: ${event.message.text}`);
-				callGemini(event.message.text)
-					.then((reply) => sendMessage(sender_psid, reply))
-					.catch((err) => {
-						console.error("Gemini lỗi:", err.message);
-						sendMessage(
-							sender_psid,
-							"⚡ AI nhà Google đang mơ ngủ, thử lại sau nha!"
-						);
-					});
+				const userText = event.message.text;
+
+				// 1. Lấy lịch sử chat cho PSID đó
+				const chatHistory = getChatHistory(sender_psid);
+
+				// 2. Thêm tin nhắn mới vào
+				chatHistory.push({ role: "user", parts: [{ text: userText }] });
+
+				try {
+					const reply = await callGeminiWithHistory(chatHistory);
+
+					// 3. Lưu phản hồi lại để giữ mạch hội thoại
+					chatHistory.push({ role: "model", parts: [{ text: reply }] });
+
+					// 4. Gửi trả cho người dùng
+					sendMessage(sender_psid, reply);
+				} catch (err) {
+					console.error("Gemini lỗi:", err.message);
+					sendMessage(
+						sender_psid,
+						"⚡ Xin lỗi, BốBot đang lag, thử lại sau nhé!"
+					);
+				}
 			}
-		});
+		}
 
 		res.status(200).send("EVENT_RECEIVED");
 	} else {
@@ -72,14 +103,24 @@ function sendMessage(psid, message) {
 	);
 }
 
-async function callGemini(prompt) {
+async function callGemini(promptHistory) {
 	const result = await genAI.models.generateContent({
 		model: "gemini-2.0-flash",
-		contents: prompt,
+		contents: promptHistory,
 	});
 	const response = result.text;
 	return response;
+
+	// return response.text();
 }
+
+setTimeout(() => {
+	callGemini([{ role: "user", parts: [{ text: "Tôi có một con gà" }] }]).then(
+		(reply) => {
+			console.log(reply);
+		}
+	);
+}, 5000);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server is running on port ${PORT}`));
