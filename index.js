@@ -1,10 +1,10 @@
 const express = require("express");
 const bodyParser = require("body-parser");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenAI } = require("@google/genai");
 const request = require("request");
 require("dotenv").config();
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const app = express();
 app.use(bodyParser.json());
@@ -73,11 +73,12 @@ function sendMessage(psid, message) {
 }
 
 async function callGemini(prompt) {
-	const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-
-	const result = await model.generateContent(prompt);
-	const response = result.response;
-	return response.text();
+	const result = await genAI.models.generateContent({
+		model: "gemini-2.0-flash",
+		contents: prompt,
+	});
+	const response = result.text;
+	return response;
 }
 
 const PORT = process.env.PORT || 3000;
