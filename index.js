@@ -1,7 +1,14 @@
 const express = require("express");
 const bodyParser = require("body-parser");
+const { Configuration, OpenAIApi } = require("openai");
 const request = require("request");
 require("dotenv").config();
+
+const configuration = new Configuration({
+	apiKey: process.env.OPENAI_API_KEY,
+});
+
+const openai = new OpenAIApi(configuration);
 
 const app = express();
 app.use(bodyParser.json());
@@ -31,10 +38,14 @@ app.post("/webhook", (req, res) => {
 
 			if (event.message && event.message.text) {
 				console.log(`📨 Tin nhắn từ ${sender_psid}: ${event.message.text}`);
-				sendMessage(
-					sender_psid,
-					`Bot Bố đẹp trai đã nhận được: "${event.message.text}" 😎`
-				);
+				callGPT(event.message.text)
+					.then((gptReply) => {
+						sendMessage(sender_psid, gptReply);
+					})
+					.catch((err) => {
+						console.error("❌ GPT lỗi:", err);
+						sendMessage(sender_psid, "Xin lỗi, AI đang lag tí 😅");
+					});
 			}
 		});
 
@@ -62,6 +73,14 @@ function sendMessage(psid, message) {
 			else console.error("❌ Gửi lỗi:", err);
 		}
 	);
+}
+
+async function callGPT(messageText) {
+	const completion = await openai.createChatCompletion({
+		model: "gpt-3.5-turbo",
+		messages: [{ role: "user", content: messageText }],
+	});
+	return completion.data.choices[0].message.content.trim();
 }
 
 const PORT = process.env.PORT || 3000;
